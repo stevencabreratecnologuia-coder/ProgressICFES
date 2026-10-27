@@ -20,7 +20,7 @@ RUN printf '\n<Directory /var/www/html>\n    AllowOverride All\n    Require all 
 WORKDIR /var/www/html
 
 # Copiar el contenido de app, no la carpeta app completa
-COPY app/ /var/www/html/
+COPY . /var/www/html/
 
 EXPOSE 10000
 
