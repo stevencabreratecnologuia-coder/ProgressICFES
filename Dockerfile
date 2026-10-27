@@ -1,5 +1,6 @@
 
 FROM php:8.2-apache
+RUN usermod -a -G 1000 www-data
 
 # Instalar soporte para MySQL
 RUN docker-php-ext-install pdo_mysql
