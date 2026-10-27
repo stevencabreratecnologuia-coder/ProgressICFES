@@ -1,4 +1,3 @@
-
 <?php
 
 class SimulacroController extends Controller
