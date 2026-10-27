@@ -36,7 +36,7 @@ class PracticaController extends Controller
         $errors = $_SESSION['practica_errors'] ?? [];
         unset($_SESSION['practica_errors']);
 
-        $this->render('practica/index', [
+        $this->render('Practica/index', [
             'pageTitle' => 'Práctica | ProgressICFES',
             'activePage' => 'practica',
             'materias' => $materias,

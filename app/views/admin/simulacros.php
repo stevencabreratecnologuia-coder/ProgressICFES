@@ -1,3 +1,5 @@
+<a class="back-link" href="<?= htmlspecialchars($baseUrl, ENT_QUOTES, 'UTF-8') ?>"><span aria-hidden="true">←</span> Volver al inicio</a>
+
 <section class="practica-intro">
     <p class="eyebrow">SIMULACROS</p>
     <h1>Simulacros creados.</h1>
