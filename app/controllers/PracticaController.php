@@ -18,6 +18,7 @@ class PracticaController extends Controller
             $preguntas = (new Pregunta())->obtenerTodas();
             $tiposPregunta = (new TipoPregunta())->obtenerTodos();
             $mensajes = $_SESSION['admin_mensajes'] ?? [];
+
             unset($_SESSION['admin_mensajes']);
 
             $this->render('Practica/admin', [
@@ -100,17 +101,8 @@ class PracticaController extends Controller
         $nivelIngles = null;
 
         /*
-         * SI LA MATERIA ES INGLÉS:
-         *
-         * Calculamos automáticamente el nivel del estudiante
+         * Si la materia es Inglés, calculamos el nivel del estudiante
          * según sus últimas respuestas.
-         *
-         * Ejemplo:
-         * 0% - 39%   = A1
-         * 40% - 59%  = A2
-         * 60% - 74%  = B1
-         * 75% - 89%  = B2
-         * 90% - 100% = C1
          */
         if (mb_strtolower($nombreMateria) === 'inglés') {
             $progresoModel = new Progreso();
@@ -119,24 +111,12 @@ class PracticaController extends Controller
                 $usuarioId
             );
 
-            /*
-             * TEMPORALMENTE se obtienen las preguntas como antes.
-             *
-             * En el siguiente paso modificaremos Pregunta.php para
-             * que aquí se obtengan solamente preguntas del nivel:
-             *
-             * A1, A2, B1, B2 o C1.
-             */
             $preguntas = $preguntaModel->obtenerAleatorias(
                 $temaId,
                 $materiaId,
                 $cantidad
             );
         } else {
-            /*
-             * Las demás materias siguen funcionando exactamente
-             * igual que antes.
-             */
             $preguntas = $preguntaModel->obtenerAleatorias(
                 $temaId,
                 $materiaId,
@@ -153,14 +133,11 @@ class PracticaController extends Controller
             return;
         }
 
-        // Cada sesión de práctica queda registrada como un "simulacro"
-        // privado de tipo "practica", para poder verla luego en Progreso.
-
+        // Cada práctica queda registrada como un simulacro privado.
         $simulacroModel = new Simulacro();
 
         $tituloPractica = 'Práctica libre - ' . $nombreMateria;
 
-        // Si es Inglés, agregamos el nivel al título.
         if ($nivelIngles !== null) {
             $tituloPractica .= ' - Nivel ' . $nivelIngles['nivel'];
         }
@@ -204,7 +181,8 @@ class PracticaController extends Controller
             return;
         }
 
-        $this->render('practica/preguntas', [
+        // La carpeta se llama Practica, con P mayúscula.
+        $this->render('Practica/preguntas', [
             'pageTitle' => 'Práctica | ProgressICFES',
             'activePage' => 'practica',
             'preguntas' => $sesionPractica['preguntas'],
@@ -212,8 +190,7 @@ class PracticaController extends Controller
         ]);
     }
 
-    // Corrige las respuestas enviadas, las guarda en la base de datos
-    // y muestra el resultado.
+    // Corrige las respuestas enviadas y guarda los resultados.
     public function responder(): void
     {
         $this->requireAuthentication();
@@ -242,9 +219,7 @@ class PracticaController extends Controller
             $opcionSeleccionada =
                 $opcionSeleccionadaRaw !== null
                 && $opcionSeleccionadaRaw !== ''
-                ? strtolower(
-                    trim((string) $opcionSeleccionadaRaw)
-                )
+                ? strtolower(trim((string) $opcionSeleccionadaRaw))
                 : null;
 
             $respuestaCorrecta = strtolower(
@@ -276,9 +251,7 @@ class PracticaController extends Controller
 
         $tiempoUsadoSeg = max(
             0,
-            time() - (int) (
-                $sesionPractica['inicio'] ?? time()
-            )
+            time() - (int) ($sesionPractica['inicio'] ?? time())
         );
 
         $puntajeIcfes = $total > 0
@@ -309,15 +282,18 @@ class PracticaController extends Controller
         }
 
         $planRefuerzo = null;
-
         $erroresPlan = [];
+
         foreach ($detalle as $item) {
             if (!empty($item['es_correcta'])) {
                 continue;
             }
 
             $pregunta = $item['pregunta'] ?? [];
-            $preguntaCompleta = (new Pregunta())->obtenerPorId((int) ($pregunta['id'] ?? 0));
+
+            $preguntaCompleta = (new Pregunta())->obtenerPorId(
+                (int) ($pregunta['id'] ?? 0)
+            );
 
             $erroresPlan[] = [
                 'pregunta_id' => (int) ($pregunta['id'] ?? 0),
@@ -332,10 +308,17 @@ class PracticaController extends Controller
         }
 
         $materiaPromptIA = '';
+
         foreach ($sesionPractica['preguntas'] as $preguntaMateria) {
-            $preguntaCompletaMateria = (new Pregunta())->obtenerPorId((int) ($preguntaMateria['id'] ?? 0));
+            $preguntaCompletaMateria = (new Pregunta())->obtenerPorId(
+                (int) ($preguntaMateria['id'] ?? 0)
+            );
+
             if ($preguntaCompletaMateria !== null) {
-                $materiaPromptIA = (string) ($preguntaCompletaMateria['materia_nombre'] ?? '');
+                $materiaPromptIA = (string) (
+                    $preguntaCompletaMateria['materia_nombre'] ?? ''
+                );
+
                 if ($materiaPromptIA !== '') {
                     break;
                 }
@@ -348,10 +331,16 @@ class PracticaController extends Controller
                 $grado = (int) ($usuarioCompleto['grado'] ?? 0);
                 $materiaPlan = '';
 
-                foreach ($preguntas = $sesionPractica['preguntas'] as $preguntaPlan) {
-                    $preguntaCompleta = (new Pregunta())->obtenerPorId((int) ($preguntaPlan['id'] ?? 0));
+                foreach ($sesionPractica['preguntas'] as $preguntaPlan) {
+                    $preguntaCompleta = (new Pregunta())->obtenerPorId(
+                        (int) ($preguntaPlan['id'] ?? 0)
+                    );
+
                     if ($preguntaCompleta !== null) {
-                        $materiaPlan = (string) ($preguntaCompleta['materia_nombre'] ?? '');
+                        $materiaPlan = (string) (
+                            $preguntaCompleta['materia_nombre'] ?? ''
+                        );
+
                         if ($materiaPlan !== '') {
                             break;
                         }
@@ -366,6 +355,8 @@ class PracticaController extends Controller
                     $erroresPlan
                 );
             } catch (Throwable $e) {
+                error_log((string) $e);
+
                 $planRefuerzo = [
                     'error' => 'No fue posible generar el plan automático en este momento. Tus resultados sí fueron guardados correctamente.',
                 ];
@@ -409,7 +400,8 @@ class PracticaController extends Controller
             return;
         }
 
-        $this->render('practica/resultado', [
+        // La carpeta se llama Practica, con P mayúscula.
+        $this->render('Practica/resultado', [
             'pageTitle' => 'Resultado | ProgressICFES',
             'activePage' => 'practica',
             'resultado' => $resultado,
@@ -417,8 +409,7 @@ class PracticaController extends Controller
     }
 
     /**
-     * Arma un texto listo para copiar y pegar en una IA (ProgressIA u otra),
-     * resumiendo cómo le fue al estudiante en esta práctica.
+     * Construye un texto para estudiar los errores de la práctica.
      */
     private function construirPromptIA(
         string $materia,
@@ -428,7 +419,11 @@ class PracticaController extends Controller
         array $erroresPlan
     ): string {
         $lineas = [];
-        $lineas[] = 'Acabo de terminar una práctica de ' . ($materia !== '' ? $materia : 'ICFES') . ' en ProgressICFES.';
+
+        $lineas[] = 'Acabo de terminar una práctica de '
+            . ($materia !== '' ? $materia : 'ICFES')
+            . ' en ProgressICFES.';
+
         $lineas[] = "Resultado: {$correctas} de {$total} correctas ({$porcentaje}%).";
         $lineas[] = '';
 
@@ -441,6 +436,7 @@ class PracticaController extends Controller
 
             foreach ($erroresPlan as $indice => $error) {
                 $numero = $indice + 1;
+
                 $lineas[] = "{$numero}. Tema: {$error['tema']} (dificultad: {$error['dificultad']})";
                 $lineas[] = "   Pregunta: {$error['enunciado']}";
                 $lineas[] = "   Mi respuesta: {$error['respuesta_estudiante']}";
