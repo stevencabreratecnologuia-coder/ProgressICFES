@@ -1,6 +1,5 @@
-
 .env
-.env.*
-!.env.example
-
-/app/config/ConfigIA.php
+*.sql
+*.pem
+app/config/ca.pem
+app/probar_conexion.php

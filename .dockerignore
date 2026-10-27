@@ -1,0 +1,6 @@
+@'
+.env
+*.sql
+*.pem
+app/config/ca.pem
+app/probar_conexion.php
