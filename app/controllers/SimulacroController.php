@@ -1,3 +1,4 @@
+
 <?php
 
 declare(strict_types=1);
@@ -5,16 +6,7 @@ declare(strict_types=1);
 class SimulacroController extends Controller
 {
     /**
-     * Lista los simulacros según el rol.
-     *
-     * ADMIN:
-     * - Ve todos los simulacros.
-     *
-     * PROFESOR:
-     * - Ve únicamente sus simulacros de su materia.
-     *
-     * ESTUDIANTE:
-     * - Ve los simulacros disponibles para presentar.
+     * Lista los simulacros según el rol del usuario.
      */
     public function index(): void
     {
@@ -23,12 +15,7 @@ class SimulacroController extends Controller
         $usuario = $this->currentUser();
         $rol = $usuario['rol'] ?? '';
 
-        /*
-        |--------------------------------------------------------------------------
-        | ADMIN
-        |--------------------------------------------------------------------------
-        */
-
+        // Administrador
         if ($rol === 'admin') {
             $simulacros = (new Simulacro())->obtenerTodosAdmin();
 
@@ -45,43 +32,36 @@ class SimulacroController extends Controller
             return;
         }
 
-        /*
-        |--------------------------------------------------------------------------
-        | PROFESOR
-        |--------------------------------------------------------------------------
-        |
-        | El profesor no utiliza el panel general de simulacros.
-        | Se envía a su gestión personalizada.
-        |
-        */
-
+        // Profesor
         if ($rol === 'profesor') {
             (new ProfesorController())->simulacros();
             return;
         }
 
-        /*
-        |--------------------------------------------------------------------------
-        | ESTUDIANTE
-        |--------------------------------------------------------------------------
-        */
-
+        // Estudiante
         $estudianteId = (int) ($usuario['id'] ?? 0);
 
-        // Solo se listan los simulacros que el estudiante todavía no ha presentado.
-        $simulacros = (new Simulacro())->obtenerDisponibles($estudianteId);
+        $simulacros = (new Simulacro())->obtenerDisponibles(
+            $estudianteId
+        );
 
         $errors = $_SESSION['simulacro_errors'] ?? [];
         unset($_SESSION['simulacro_errors']);
-        $resultadoModel = new ResultadoSimulacro();
+
+        $resultadoModel = $this->nuevoResultadoSimulacro();
 
         $this->render('simulacro/index', [
             'pageTitle' => 'Simulacros | ProgressICFES',
             'activePage' => 'simulacros',
             'simulacros' => $simulacros,
             'errors' => $errors,
-            'historial' => $resultadoModel->obtenerRecientes($estudianteId, 3),
-            'resumen' => $resultadoModel->obtenerResumen($estudianteId),
+            'historial' => $resultadoModel->obtenerRecientes(
+                $estudianteId,
+                3
+            ),
+            'resumen' => $resultadoModel->obtenerResumen(
+                $estudianteId
+            ),
         ]);
     }
 
@@ -98,7 +78,6 @@ class SimulacroController extends Controller
         }
 
         $simulacroId = (int) ($_POST['simulacro_id'] ?? 0);
-
         $simulacroModel = new Simulacro();
 
         $simulacro = $simulacroId > 0
@@ -107,28 +86,32 @@ class SimulacroController extends Controller
 
         if ($simulacro === null) {
             $_SESSION['simulacro_errors'] = [
-                'general' => 'Ese simulacro ya no está disponible.'
+                'general' => 'Ese simulacro ya no está disponible.',
             ];
 
             $this->redirect('simulacros');
             return;
         }
+
+        $usuarioId = (int) ($this->currentUser()['id'] ?? 0);
 
         // Cada simulacro se presenta una sola vez por estudiante.
-        if ($simulacroModel->yaPresentado($simulacroId, (int) ($this->currentUser()['id'] ?? 0))) {
+        if ($simulacroModel->yaPresentado($simulacroId, $usuarioId)) {
             $_SESSION['simulacro_errors'] = [
-                'general' => 'Ya presentaste este simulacro.'
+                'general' => 'Ya presentaste este simulacro.',
             ];
 
             $this->redirect('simulacros');
             return;
         }
 
-        $preguntas = $simulacroModel->obtenerPreguntas($simulacroId);
+        $preguntas = $simulacroModel->obtenerPreguntas(
+            $simulacroId
+        );
 
         if ($preguntas === []) {
             $_SESSION['simulacro_errors'] = [
-                'general' => 'Ese simulacro todavía no tiene preguntas cargadas.'
+                'general' => 'Ese simulacro todavía no tiene preguntas cargadas.',
             ];
 
             $this->redirect('simulacros');
@@ -189,26 +172,23 @@ class SimulacroController extends Controller
         }
 
         $respuestasEnviadas = $_POST['respuestas'] ?? [];
-
         $correctas = 0;
         $respuestasParaGuardar = [];
 
         foreach ($sesion['preguntas'] as $pregunta) {
-            $opcionSeleccionadaRaw =
-                $respuestasEnviadas[$pregunta['id']] ?? null;
+            $opcionRaw = $respuestasEnviadas[$pregunta['id']] ?? null;
 
             $opcionSeleccionada =
-                $opcionSeleccionadaRaw !== null &&
-                $opcionSeleccionadaRaw !== ''
-                ? strtolower(trim((string) $opcionSeleccionadaRaw))
+                $opcionRaw !== null && $opcionRaw !== ''
+                ? strtolower(trim((string) $opcionRaw))
                 : null;
 
-            $respuestaCorrecta =
-                strtolower(trim((string) $pregunta['respuesta_correcta']));
+            $respuestaCorrecta = strtolower(
+                trim((string) $pregunta['respuesta_correcta'])
+            );
 
-            $esCorrecta =
-                $opcionSeleccionada !== null &&
-                $opcionSeleccionada === $respuestaCorrecta;
+            $esCorrecta = $opcionSeleccionada !== null
+                && $opcionSeleccionada === $respuestaCorrecta;
 
             if ($esCorrecta) {
                 $correctas++;
@@ -234,13 +214,8 @@ class SimulacroController extends Controller
 
         $usuarioId = (int) $this->currentUser()['id'];
 
-        /*
-        |--------------------------------------------------------------------------
-        | GUARDAR RESULTADO
-        |--------------------------------------------------------------------------
-        */
-
-        $resultadoModel = new ResultadoSimulacro();
+        // Guardar el resultado.
+        $resultadoModel = $this->nuevoResultadoSimulacro();
 
         $resultadoId = $resultadoModel->crear(
             $usuarioId,
@@ -250,12 +225,7 @@ class SimulacroController extends Controller
             $tiempoUsadoSeg
         );
 
-        /*
-        |--------------------------------------------------------------------------
-        | GUARDAR RESPUESTAS
-        |--------------------------------------------------------------------------
-        */
-
+        // Guardar las respuestas.
         $respuestaModel = new RespuestaEstudiante();
 
         foreach ($respuestasParaGuardar as $respuesta) {
@@ -267,10 +237,13 @@ class SimulacroController extends Controller
             );
         }
 
+        // Preparar el plan de refuerzo.
         $planRefuerzo = null;
-
         $erroresPlan = [];
-        $detalleResultado = (new RespuestaEstudiante())->obtenerPorResultado($resultadoId);
+
+        $detalleResultado = $respuestaModel->obtenerPorResultado(
+            $resultadoId
+        );
 
         foreach ($detalleResultado as $item) {
             if (!empty($item['es_correcta'])) {
@@ -282,7 +255,7 @@ class SimulacroController extends Controller
                 'tema' => (string) ($item['tema_nombre'] ?? 'No disponible'),
                 'dificultad' => (string) ($item['dificultad'] ?? 'No disponible'),
                 'enunciado' => (string) ($item['enunciado'] ?? ''),
-                'respuesta_estudiante' => $item['opcion_seleccionada'] !== null
+                'respuesta_estudiante' => ($item['opcion_seleccionada'] ?? null) !== null
                     ? strtoupper((string) $item['opcion_seleccionada'])
                     : 'Sin respuesta',
                 'explicacion' => (string) ($item['explicacion'] ?? ''),
@@ -291,18 +264,26 @@ class SimulacroController extends Controller
 
         if ($erroresPlan !== []) {
             try {
-                $usuarioCompleto = (new Usuario())->buscarPorId($usuarioId);
-                $grado = (int) ($usuarioCompleto['grado'] ?? 0);
-                $materiaPlan = (string) ($detalleResultado[0]['materia_nombre'] ?? '');
-
-                $planRefuerzo = (new EstudianteIAService())->generarPlanRefuerzo(
-                    $usuarioId,
-                    $grado,
-                    $materiaPlan,
-                    'simulacro',
-                    $erroresPlan
+                $usuarioCompleto = (new Usuario())->buscarPorId(
+                    $usuarioId
                 );
+
+                $grado = (int) ($usuarioCompleto['grado'] ?? 0);
+                $materiaPlan = (string) (
+                    $detalleResultado[0]['materia_nombre'] ?? ''
+                );
+
+                $planRefuerzo = (new EstudianteIAService())
+                    ->generarPlanRefuerzo(
+                        $usuarioId,
+                        $grado,
+                        $materiaPlan,
+                        'simulacro',
+                        $erroresPlan
+                    );
             } catch (Throwable $e) {
+                error_log((string) $e);
+
                 $planRefuerzo = [
                     'error' => 'No fue posible generar el plan automático en este momento. Tu resultado sí fue guardado correctamente.',
                 ];
@@ -329,27 +310,34 @@ class SimulacroController extends Controller
         $this->requireAuthentication();
 
         $resultadoId = (int) ($_GET['id'] ?? 0);
-
         $usuarioId = (int) $this->currentUser()['id'];
 
-        $resultado = $resultadoId > 0
-            ? (new ResultadoSimulacro())
-            ->obtenerPorId($resultadoId, $usuarioId)
-            : null;
+        $resultado = null;
+
+        if ($resultadoId > 0) {
+            $resultadoModel = $this->nuevoResultadoSimulacro();
+
+            $resultado = $resultadoModel->obtenerPorId(
+                $resultadoId,
+                $usuarioId
+            );
+        }
 
         if ($resultado === null) {
             $this->redirect('simulacros');
             return;
         }
 
-        $detalle =
-            (new RespuestaEstudiante())
+        $detalle = (new RespuestaEstudiante())
             ->obtenerPorResultado($resultadoId);
 
         $totalPreguntasPrompt = count($detalle);
         $correctasPrompt = (int) $resultado['puntaje'];
+
         $porcentajePrompt = $totalPreguntasPrompt > 0
-            ? (int) round(($correctasPrompt / $totalPreguntasPrompt) * 100)
+            ? (int) round(
+                ($correctasPrompt / $totalPreguntasPrompt) * 100
+            )
             : 0;
 
         $promptIA = $this->construirPromptIA(
@@ -363,7 +351,11 @@ class SimulacroController extends Controller
 
         $planRefuerzo = null;
         $planSesion = $_SESSION['simulacro_plan_refuerzo'] ?? null;
-        if (is_array($planSesion) && (int) ($planSesion['resultado_id'] ?? 0) === $resultadoId) {
+
+        if (
+            is_array($planSesion)
+            && (int) ($planSesion['resultado_id'] ?? 0) === $resultadoId
+        ) {
             $planRefuerzo = $planSesion['plan'] ?? null;
             unset($_SESSION['simulacro_plan_refuerzo']);
         }
@@ -379,8 +371,42 @@ class SimulacroController extends Controller
     }
 
     /**
-     * Arma un texto listo para copiar y pegar en una IA (ProgressIA u otra),
-     * resumiendo cómo le fue al estudiante en este simulacro.
+     * Intenta cargar ResultadoSimulacro aunque el nombre del archivo
+     * tenga diferencias de mayúsculas y minúsculas en Linux.
+     */
+    private function nuevoResultadoSimulacro()
+    {
+        if (!class_exists('ResultadoSimulacro')) {
+            $directorioModelos = dirname(__DIR__) . '/models/';
+            $archivos = glob($directorioModelos . '*.php') ?: [];
+
+            foreach ($archivos as $archivo) {
+                $contenido = file_get_contents($archivo);
+
+                if (
+                    $contenido !== false
+                    && preg_match(
+                        '/\bclass\s+ResultadoSimulacro\b/',
+                        $contenido
+                    )
+                ) {
+                    require_once $archivo;
+                    break;
+                }
+            }
+        }
+
+        if (!class_exists('ResultadoSimulacro', false)) {
+            throw new RuntimeException(
+                'No se encontró la clase ResultadoSimulacro en app/models.'
+            );
+        }
+
+        return new ResultadoSimulacro();
+    }
+
+    /**
+     * Construye un texto para analizar los errores del simulacro.
      */
     private function construirPromptIA(
         string $titulo,
@@ -391,45 +417,60 @@ class SimulacroController extends Controller
         array $detalle
     ): string {
         $lineas = [];
+
         $lineas[] = "Acabo de presentar el simulacro \"{$titulo}\" en ProgressICFES.";
         $lineas[] = "Resultado: {$correctas} de {$total} correctas ({$porcentaje}%).";
         $lineas[] = "Puntaje estimado ICFES: {$puntajeIcfes}/500.";
         $lineas[] = '';
 
-        $errores = array_values(array_filter($detalle, static fn(array $item): bool => empty($item['es_correcta'])));
+        $errores = array_values(array_filter(
+            $detalle,
+            static fn(array $item): bool => empty($item['es_correcta'])
+        ));
 
         if ($errores === []) {
             $lineas[] = 'No tuve preguntas incorrectas esta vez.';
             $lineas[] = 'Dame 2 o 3 ejercicios un poco más difíciles para seguir practicando.';
         } else {
             $porTema = [];
+
             foreach ($errores as $error) {
                 $tema = (string) ($error['tema_nombre'] ?? 'No disponible');
                 $porTema[$tema] = ($porTema[$tema] ?? 0) + 1;
             }
 
-            $lineas[] = 'Estas fueron mis materias/temas con errores:';
+            $lineas[] = 'Estos fueron mis temas con errores:';
+
             foreach ($porTema as $tema => $cantidad) {
                 $lineas[] = "- {$tema}: {$cantidad} error(es)";
             }
-            $lineas[] = '';
 
+            $lineas[] = '';
             $lineas[] = 'Estas son las preguntas que respondí mal:';
             $lineas[] = '';
 
             foreach ($errores as $indice => $error) {
                 $numero = $indice + 1;
-                $respuesta = $error['opcion_seleccionada'] !== null
+
+                $respuesta = ($error['opcion_seleccionada'] ?? null) !== null
                     ? strtoupper((string) $error['opcion_seleccionada'])
                     : 'Sin respuesta';
-                $lineas[] = "{$numero}. Materia: {$error['materia_nombre']} · Tema: {$error['tema_nombre']}";
-                $lineas[] = "   Pregunta: {$error['enunciado']}";
+
+                $lineas[] = "{$numero}. Materia: "
+                    . ($error['materia_nombre'] ?? 'No disponible')
+                    . ' · Tema: '
+                    . ($error['tema_nombre'] ?? 'No disponible');
+
+                $lineas[] = '   Pregunta: '
+                    . ($error['enunciado'] ?? '');
+
                 $lineas[] = "   Mi respuesta: {$respuesta}";
                 $lineas[] = '';
             }
 
-            $lineas[] = 'Ayúdame a entender por qué fallé estas preguntas, explícamelo paso a paso sin darme';
-            $lineas[] = 'de una vez la respuesta, y dame un plan corto de 3 días para reforzar estos temas.';
+            $lineas[] = 'Ayúdame a entender por qué fallé estas preguntas. '
+                . 'Explícamelo paso a paso sin darme de una vez la respuesta, '
+                . 'y dame un plan corto de 3 días para reforzar estos temas.';
         }
 
         return implode("\n", $lineas);
